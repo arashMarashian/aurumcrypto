@@ -227,3 +227,17 @@ streamlit run web/app_dual.py
 
 Set API URL + Token in the sidebar. Pick a refresh interval (e.g., 15 s). Confirm both panels fetch signals, candles render, TP/SL lines appear, and a SYNTHETIC DATA badge shows if any fallback is in the CSV.
 
+## Step 10 – Live bars API + dashboard
+
+Run API:
+```bash
+uvicorn api.main:app --reload --port 8000
+```
+
+Run dashboard:
+```bash
+streamlit run web/app_dual.py
+```
+
+The dashboard now fetches candles from `GET /bars?asset=XAU|BTC` so charts update even if CSVs are not refreshed. Signals still come from `GET /signal`.
+

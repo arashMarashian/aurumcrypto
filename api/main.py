@@ -2,13 +2,19 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException, Query, Header
 from fastapi.responses import JSONResponse
 import pandas as pd
+import numpy as np
 import pathlib
 import json
 
+from ta.trend import EMAIndicator
+from ta.volatility import BollingerBands
+from ta.momentum import RSIIndicator
+
 from .model_loader import load_model
 from .config import ASSETS, get_api_token
+from tools.ingest import fetch_gold, fetch_crypto
 
-import csv, time, pathlib
+import csv, time
 
 LOG_PATH = pathlib.Path("data/signal_log.csv")
 
@@ -143,3 +149,62 @@ def meta(
         raise HTTPException(status_code=404, detail="Meta file not found.")
     return JSONResponse(json.loads(p.read_text()))
 
+
+@app.get("/bars")
+def bars(
+    asset: str = Query(..., description="XAU or BTC"),
+    n: int = Query(300, ge=50, le=2000, description="number of rows"),
+    x_token: str | None = Header(None, alias="X-Token"),
+):
+    _auth(x_token)
+    asset_up = asset.upper()
+    if asset_up not in ASSETS:
+        raise HTTPException(status_code=404, detail="Unknown asset")
+
+    try:
+        if asset_up == "XAU":
+            df = fetch_gold(ticker="GC=F", interval="5m", period="5d")
+        else:
+            df = fetch_crypto(symbol="BTC/USDT", exchange="binance", timeframe="1m", limit=max(n, 600))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"fetch error: {exc}")
+
+    if df is None or df.empty:
+        raise HTTPException(status_code=500, detail="no bars")
+
+    df = df.tail(n).copy()
+    df["close"] = df["close"].astype(float)
+
+    try:
+        df["ema_20"] = EMAIndicator(df["close"], window=20).ema_indicator()
+        df["ema_50"] = EMAIndicator(df["close"], window=50).ema_indicator()
+        bb = BollingerBands(df["close"], window=20, window_dev=2)
+        df["bb_mid"] = bb.bollinger_mavg()
+        df["bb_up"] = bb.bollinger_hband()
+        df["bb_low"] = bb.bollinger_lband()
+        df["rsi_14"] = RSIIndicator(df["close"], window=14).rsi()
+    except Exception:
+        pass
+
+    def _series(name: str):
+        if name in df.columns:
+            return df[name].astype(float).round(8).replace([np.inf, -np.inf], np.nan).fillna(np.nan).tolist()
+        return [np.nan] * len(df)
+
+    out = {
+        "symbol": str(df.get("symbol", pd.Series([asset_up])).iloc[-1]),
+        "source": str(df.get("source", pd.Series(["unknown"])).iloc[-1]),
+        "rows": len(df),
+        "timestamp": pd.to_datetime(df["timestamp"]).astype(str).tolist(),
+        "open": df["open"].astype(float).round(8).fillna(0.0).tolist(),
+        "high": df["high"].astype(float).round(8).fillna(0.0).tolist(),
+        "low": df["low"].astype(float).round(8).fillna(0.0).tolist(),
+        "close": df["close"].astype(float).round(8).fillna(0.0).tolist(),
+        "ema_20": [x if np.isfinite(x) else None for x in _series("ema_20")],
+        "ema_50": [x if np.isfinite(x) else None for x in _series("ema_50")],
+        "bb_mid": [x if np.isfinite(x) else None for x in _series("bb_mid")],
+        "bb_up": [x if np.isfinite(x) else None for x in _series("bb_up")],
+        "bb_low": [x if np.isfinite(x) else None for x in _series("bb_low")],
+        "rsi_14": [x if np.isfinite(x) else None for x in _series("rsi_14")],
+    }
+    return JSONResponse(out)

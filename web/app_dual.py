@@ -36,6 +36,31 @@ def api_get(path: str, params: Dict[str, Any] | None = None) -> Tuple[Dict[str, 
     latency_ms = (time.time() - t0) * 1000.0
     return resp.json(), latency_ms
 
+def api_bars(asset: str, n: int = 300):
+    headers = {"X-Token": API_TOKEN} if API_TOKEN else {}
+    t0 = time.time()
+    resp = requests.get(f"{API_URL}/bars", params={"asset": asset, "n": n}, headers=headers, timeout=10)
+    resp.raise_for_status()
+    latency = (time.time() - t0) * 1000.0
+    payload = resp.json()
+    df = pd.DataFrame({
+        "timestamp": pd.to_datetime(payload["timestamp"]),
+        "open": payload["open"],
+        "high": payload["high"],
+        "low": payload["low"],
+        "close": payload["close"],
+        "ema_20": payload.get("ema_20", []),
+        "ema_50": payload.get("ema_50", []),
+        "bb_mid": payload.get("bb_mid", []),
+        "bb_up": payload.get("bb_up", []),
+        "bb_low": payload.get("bb_low", []),
+        "rsi_14": payload.get("rsi_14", []),
+    })
+    df["symbol"] = payload.get("symbol", asset)
+    df["source"] = payload.get("source", "unknown")
+    return df, latency
+
+
 
 def load_df(csv_path: str) -> pd.DataFrame:
     return pd.read_csv(csv_path, parse_dates=["timestamp"]).dropna().reset_index(drop=True)
@@ -61,6 +86,17 @@ def format_timedelta(delta: pd.Timedelta) -> str:
     if secs and not hours:
         parts.append(f"{secs}s")
     return " ".join(parts) or "n/a"
+
+
+def seconds_to_next_bar(ts: pd.Timestamp, tf_seconds: int) -> int:
+    ts = pd.Timestamp(ts)
+    if ts.tzinfo is None:
+        ts = ts.tz_localize("UTC")
+    else:
+        ts = ts.tz_convert("UTC")
+    epoch = int(ts.timestamp())
+    remainder = epoch % tf_seconds
+    return tf_seconds - remainder if remainder else tf_seconds
 
 
 def make_dashboard_fig(
@@ -203,15 +239,19 @@ def render_panel(asset_key: str, cfg: Dict[str, Any], lookback: int) -> None:
         st.error(f"Signal error: {exc}")
 
     try:
-        df = load_df(features_csv)
+        if use_api_asset:
+            df, bars_latency = api_bars(asset_key, max(lookback, 300))
+        else:
+            df = load_df(features_csv)
+            bars_latency = None
     except Exception as exc:
-        st.error(f"CSV load failed: {exc}")
+        st.error(f"Bars error: {exc}")
         return
 
     sym, src = last_symbol_source(df)
     synthetic = sym.upper().endswith("_SYN") or src.lower() == "synthetic"
 
-    m1, m2, m3, m4, m5, m6, m7 = st.columns(7)
+    m1, m2, m3, m4, m5, m6, m7, m8 = st.columns(8)
     latest = df.iloc[-1]
     disp_close = latest["close"] * display_mult
     m1.metric("Timestamp", str(latest["timestamp"]))
@@ -221,7 +261,6 @@ def render_panel(asset_key: str, cfg: Dict[str, Any], lookback: int) -> None:
         candle_delta = latest["timestamp"] - df.iloc[-2]["timestamp"]
     else:
         candle_delta = pd.Timedelta(0)
-    m7.metric("Candle Δ", format_timedelta(candle_delta))
 
     if signal:
         m3.metric("Prob LONG", f"{signal['p_long']:.3f}")
@@ -235,10 +274,7 @@ def render_panel(asset_key: str, cfg: Dict[str, Any], lookback: int) -> None:
             f"color:#ffffff;background:{decision_color};'>Decision: {decision}</div>",
             unsafe_allow_html=True,
         )
-        if latency_ms is not None:
-            m6.metric("API ms", f"{latency_ms:.0f}")
-        else:
-            m6.metric("API ms", "—")
+        m6.metric("Signal ms", f"{latency_ms:.0f}" if latency_ms is not None else "—")
     else:
         m3.metric("Prob LONG", "—")
         m4.metric("Prob SHORT", "—")
@@ -247,7 +283,20 @@ def render_panel(asset_key: str, cfg: Dict[str, Any], lookback: int) -> None:
             "color:#ffffff;background:#7f8c8d;'>Decision: —</div>",
             unsafe_allow_html=True,
         )
-        m6.metric("API ms", "—")
+        m6.metric("Signal ms", "—")
+
+    if bars_latency is not None and use_api_asset:
+        m7.metric("Bars ms", f"{bars_latency:.0f}")
+    else:
+        m7.metric("Bars ms", "—")
+
+    m8.metric("Candle Δ", format_timedelta(candle_delta))
+
+    if use_api_asset and not df.empty:
+        tf_sec = 300 if asset_key == "XAU" else 60
+        remain = seconds_to_next_bar(latest["timestamp"], tf_sec)
+        tf_label = f"{tf_sec // 60}m" if tf_sec >= 60 else f"{tf_sec}s"
+        st.caption(f"{asset_key} cadence: {tf_label} — {remain}s to next bar close")
 
     b1, b2 = st.columns(2)
     b1.caption(f"symbol: **{sym}** · source: **{src}**")

@@ -3,7 +3,10 @@ import argparse
 import pathlib
 import pandas as pd
 
-from common import DATA_DIR, normalize_ohlcv_df, save_csv_parquet
+try:
+    from common import DATA_DIR, normalize_ohlcv_df, save_csv_parquet
+except ImportError:  # when imported as package (e.g., api usages)
+    from tools.common import DATA_DIR, normalize_ohlcv_df, save_csv_parquet
 
 
 def _synthetic_ohlcv(limit: int, timeframe: str) -> pd.DataFrame:
@@ -133,3 +136,20 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# Facade helpers for API usage
+def fetch_gold(ticker: str = "GC=F", interval: str = "5m", period: str = "5d" ) -> pd.DataFrame:
+    raw, synthetic = fetch_yf(ticker, interval=interval, period=period)
+    if raw is None or raw.empty:
+        return raw
+    source = "synthetic" if synthetic else "yfinance"
+    symbol = "XAU_SYN" if synthetic else ticker
+    return normalize_ohlcv_df(raw, source=source, symbol=symbol, timeframe=interval)
+
+
+def fetch_crypto(symbol: str = "BTC/USDT", exchange: str = "binance", timeframe: str = "1m", limit: int = 600) -> pd.DataFrame:
+    raw = fetch_ccxt_ohlcv(symbol=symbol, timeframe=timeframe, limit=limit, exchange_name=exchange)
+    if raw is None or raw.empty:
+        return raw
+    return normalize_ohlcv_df(raw, source=exchange, symbol=symbol.replace("/", ""), timeframe=timeframe)
