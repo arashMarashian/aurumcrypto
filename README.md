@@ -73,3 +73,17 @@ python tools/ingest.py gold --ticker GLD --interval 5m --period 30d
 Outputs are saved under /data as CSV and Parquet with normalized schema:
 timestamp, open, high, low, close, volume, source, symbol, timeframe
 
+## Features & Labels (Step 3)
+
+Generate indicators and labels:
+```bash
+# Next-k label (default k=3)
+python tools/make_features.py --in_csv data/sample_btcusdt_1m.csv --label_mode nextk --k 3 --out_base data/btcusdt_1m_nextk
+python tools/make_features.py --in_csv data/sample_xauusd_5m.csv  --label_mode nextk --k 3 --out_base data/xauusd_5m_nextk
+
+# ATR-barrier label (TP=1*ATR, SL=1*ATR, horizon=15)
+python tools/make_features.py --in_csv data/sample_btcusdt_1m.csv --label_mode atr --horizon 15 --tp_mult 1.0 --sl_mult 1.0 --out_base data/btcusdt_1m_atr
+```
+
+Outputs include engineered indicators (RSI/EMA/MACD/Bollinger/ATR), returns, regime flags, and a label column (y_next3_sign or y_atr).
+
