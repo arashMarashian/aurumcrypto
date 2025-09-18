@@ -2,6 +2,12 @@ from __future__ import annotations
 import argparse
 import pandas as pd
 import numpy as np
+import pathlib
+import sys
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.append(str(ROOT))
 
 from signals.rules import rsi_trend_atr_signal
 from backtest.core import run_backtest, BTConfig
@@ -91,4 +97,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
