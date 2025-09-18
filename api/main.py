@@ -1,11 +1,12 @@
 from __future__ import annotations
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Header
 from fastapi.responses import JSONResponse
 import pandas as pd
 import pathlib
 import json
 
 from .model_loader import load_model
+from .config import API_TOKEN, ASSETS
 
 app = FastAPI(title="Gold-BTC Signal API", version="0.2.0")
 
@@ -13,6 +14,11 @@ app = FastAPI(title="Gold-BTC Signal API", version="0.2.0")
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+def _auth(x_token: str | None):
+    if API_TOKEN and (x_token != API_TOKEN):
+        raise HTTPException(status_code=401, detail="Invalid or missing token")
 
 
 def _latest_row_signal(features_csv: str, model_path: str):
@@ -63,9 +69,20 @@ def _latest_row_signal(features_csv: str, model_path: str):
 
 @app.get("/signal")
 def signal(
-    features_csv: str = Query(..., description="Path to features CSV"),
-    model_path: str = Query(..., description="Path to joblib barrier model"),
+    features_csv: str | None = None,
+    model_path: str | None = None,
+    asset: str | None = Query(None, description="Shortcut: XAU or BTC"),
+    x_token: str | None = Header(None, alias="X-Token"),
 ):
+    _auth(x_token)
+    if asset:
+        a = ASSETS.get(asset.upper())
+        if not a:
+            raise HTTPException(status_code=404, detail="Unknown asset")
+        features_csv = a["features"]
+        model_path = a["model"]
+    if not features_csv or not model_path:
+        raise HTTPException(status_code=400, detail="Provide asset or features_csv+model_path")
     try:
         out = _latest_row_signal(features_csv, model_path)
         return JSONResponse(out)
@@ -78,7 +95,19 @@ def signal(
 
 
 @app.get("/meta")
-def meta(meta_path: str = Query(..., description="Path to model meta json")):
+def meta(
+    meta_path: str | None = None,
+    asset: str | None = Query(None, description="Shortcut: XAU or BTC"),
+    x_token: str | None = Header(None, alias="X-Token"),
+):
+    _auth(x_token)
+    if asset:
+        a = ASSETS.get(asset.upper())
+        if not a:
+            raise HTTPException(status_code=404, detail="Unknown asset")
+        meta_path = a["meta"]
+    if not meta_path:
+        raise HTTPException(status_code=400, detail="Provide asset or meta_path")
     p = pathlib.Path(meta_path)
     if not p.exists():
         raise HTTPException(status_code=404, detail="Meta file not found.")

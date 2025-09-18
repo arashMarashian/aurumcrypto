@@ -157,3 +157,40 @@ Run dashboard:
 streamlit run web/app.py
 ```
 
+## Step 8 – Multi-asset + API token + refresh
+
+1) Copy `.env.example` → `.env` and set `API_TOKEN`.
+2) Start API:
+   ```bash
+   export $(grep -v '^#' .env | xargs)
+   uvicorn api.main:app --reload --port 8000
+   ```
+3) Refresh data & features:
+   ```bash
+   bash tools/refresh_assets.sh
+   ```
+4) Call API with token:
+   ```bash
+   curl -s -H "X-Token: $API_TOKEN" "http://127.0.0.1:8000/signal?asset=XAU"
+   curl -s -H "X-Token: $API_TOKEN" "http://127.0.0.1:8000/signal?asset=BTC"
+   ```
+
+Verify Step 8
+```bash
+# 1) set token in env
+cp .env.example .env && sed -i 's/changeme/mytoken123/' .env
+export $(grep -v '^#' .env | xargs)
+
+# 2) refresh data/features (uses public endpoints)
+bash tools/refresh_assets.sh
+
+# 3) run API
+uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload
+
+# 4) test endpoints (with token)
+curl -s -H "X-Token: $API_TOKEN" "http://127.0.0.1:8000/health"
+curl -s -H "X-Token: $API_TOKEN" "http://127.0.0.1:8000/signal?asset=XAU" | python -m json.tool
+curl -s -H "X-Token: $API_TOKEN" "http://127.0.0.1:8000/signal?asset=BTC" | python -m json.tool
+curl -s -H "X-Token: $API_TOKEN" "http://127.0.0.1:8000/meta?asset=XAU"   | python -m json.tool
+```
+
