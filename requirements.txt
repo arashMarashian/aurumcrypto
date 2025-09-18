@@ -1,0 +1,12 @@
+pandas
+numpy
+ta
+ccxt
+yfinance
+xgboost
+scikit-learn
+fastapi
+uvicorn
+pydantic
+plotly
+matplotlib
