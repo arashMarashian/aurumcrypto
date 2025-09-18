@@ -201,3 +201,29 @@ curl -s -H "X-Token: $API_TOKEN" "http://127.0.0.1:8000/signal?asset=XAU" | pyth
 curl -s -H "X-Token: $API_TOKEN" "http://127.0.0.1:8000/signal?asset=BTC" | python -m json.tool
 curl -s -H "X-Token: $API_TOKEN" "http://127.0.0.1:8000/meta?asset=XAU"   | python -m json.tool
 ```
+
+## Step 9 – Dual-asset web (auto-refresh + candles)
+
+Run the dashboard:
+```bash
+export API_URL="http://127.0.0.1:8000"
+export API_TOKEN="yourtoken"
+streamlit run web/app_dual.py
+```
+
+Features:
+- Two panels (XAU left, BTC right)
+- Auto-refresh (configurable)
+- Candlestick charts with EMA20/EMA50 and TP/SL overlays
+- Uses FastAPI /signal under the hood; display multiplier stays UI-only
+
+## Step 9 Quick validation
+```bash
+# API up
+uvicorn api.main:app --reload --port 8000
+# Dashboard
+streamlit run web/app_dual.py
+```
+
+Set API URL + Token in the sidebar. Pick a refresh interval (e.g., 15 s). Confirm both panels fetch signals, candles render, TP/SL lines appear, and a SYNTHETIC DATA badge shows if any fallback is in the CSV.
+

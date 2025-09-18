@@ -12,3 +12,5 @@ plotly
 matplotlib
 joblib
 streamlit
+requests
+streamlit-extras
