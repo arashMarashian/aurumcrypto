@@ -113,3 +113,32 @@ python tools/sweep_rules.py --features_csv data/xauusd_5m_nextk.csv --session "0
 
 Outputs a CSV ranking parameter sets by full-sample and walk-forward metrics.
 
+## Step 6 – ML Baseline (XGBoost)
+
+Train with walk-forward OOF, auto thresholding, and sanity backtest:
+```bash
+python ml/train_xgb.py --features_csv data/xauusd_5m_nextk.csv --model_out models/xgb_nextk.joblib --meta_out models/xgb_nextk_meta.json --bt_out data/ml_trades.csv
+```
+
+Emit the latest ML-guided signal as JSON:
+
+```bash
+python ml/predict_signal.py --features_csv data/xauusd_5m_nextk.csv --model_path models/xgb_nextk.joblib
+```
+
+## Step 6b – ML with triple-barrier (long & short heads)
+
+Train calibrated XGBoost heads (long/short) on `y_atr` and sweep thresholds:
+```bash
+# Recompute features if needed to include y_atr:
+python tools/make_features.py --in_csv data/sample_xauusd_5m.csv --label_mode atr --horizon 15 --tp_mult 1.0 --sl_mult 1.0 --out_base data/xauusd_5m_atr
+
+python ml/train_xgb_barrier.py --features_csv data/xauusd_5m_atr.csv --model_out models/xgb_barrier.joblib --meta_out models/xgb_barrier_meta.json
+```
+
+Emit latest signal (long/short/flat):
+
+```bash
+python ml/predict_barrier.py --features_csv data/xauusd_5m_atr.csv --model_path models/xgb_barrier.joblib
+```
+
