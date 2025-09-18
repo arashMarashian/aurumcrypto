@@ -10,10 +10,27 @@ def ensure_dir(p: pathlib.Path):
     p.parent.mkdir(parents=True, exist_ok=True)
 
 
+def _normalize_series(obj: pd.Series | pd.DataFrame) -> pd.Series:
+    if isinstance(obj, pd.DataFrame):
+        if obj.empty:
+            return pd.Series(dtype="float64")
+        obj = obj.iloc[:, 0]
+    return pd.to_numeric(obj, errors="coerce")
+
+
 def _numeric_column(df: pd.DataFrame, *names: str) -> pd.Series:
     for name in names:
         if name in df.columns:
-            return pd.to_numeric(df[name], errors="coerce")
+            return _normalize_series(df[name])
+    if isinstance(df.columns, pd.MultiIndex):
+        for name in names:
+            for col_key in df.columns:
+                if not isinstance(col_key, tuple):
+                    continue
+                if col_key[-1] == name or col_key[0] == name:
+                    return _normalize_series(df[col_key])
+                if col_key[-1].lower() == name.lower() or col_key[0].lower() == name.lower():
+                    return _normalize_series(df[col_key])
     return pd.Series(index=df.index, dtype="float64")
 
 
@@ -27,7 +44,6 @@ def normalize_ohlcv_df(df: pd.DataFrame, source: str, symbol: str, timeframe: st
     elif "Date" in df.columns:
         ts = pd.to_datetime(df["Date"], utc=True, errors="coerce")
     else:
-        # try index
         ts = pd.to_datetime(df.index, utc=True, errors="coerce")
     out = pd.DataFrame({
         "timestamp": ts,
@@ -55,4 +71,3 @@ def save_csv_parquet(df: pd.DataFrame, basepath: pathlib.Path):
     except Exception:
         pq_path = None
     return csv_path, pq_path
-
