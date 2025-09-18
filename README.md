@@ -64,9 +64,13 @@ python tools/ingest.py crypto --symbol BTC/USDT --exchange binance --timeframe 1
 Fetch Gold via Yahoo (choose one):
 
 ```bash
-# Spot proxy
+# COMEX front-month futures (recommended)
+python tools/ingest.py gold --ticker GC=F --interval 5m --period 30d
+
+# Spot proxy (availability varies by region)
 python tools/ingest.py gold --ticker XAUUSD=X --interval 5m --period 30d
-# or GLD ETF (market hours only)
+
+# GLD ETF (market hours only)
 python tools/ingest.py gold --ticker GLD --interval 5m --period 30d
 ```
 
@@ -157,6 +161,8 @@ Run dashboard:
 streamlit run web/app.py
 ```
 
+The dashboard includes a "Display multiplier" field so you can rescale prices if your broker quotes a different unit (e.g., CFD vs futures) without altering the underlying data.
+
 ## Step 8 – Multi-asset + API token + refresh
 
 1) Copy `.env.example` → `.env` and set `API_TOKEN`.
@@ -174,6 +180,8 @@ streamlit run web/app.py
    curl -s -H "X-Token: $API_TOKEN" "http://127.0.0.1:8000/signal?asset=XAU"
    curl -s -H "X-Token: $API_TOKEN" "http://127.0.0.1:8000/signal?asset=BTC"
    ```
+
+`tools/refresh_assets.sh` defaults to `GC=F` for intraday gold data; if Yahoo returns nothing, the fallback series is tagged with `source=synthetic` and `symbol=XAU_SYN` so you can spot it instantly.
 
 Verify Step 8
 ```bash
@@ -193,4 +201,3 @@ curl -s -H "X-Token: $API_TOKEN" "http://127.0.0.1:8000/signal?asset=XAU" | pyth
 curl -s -H "X-Token: $API_TOKEN" "http://127.0.0.1:8000/signal?asset=BTC" | python -m json.tool
 curl -s -H "X-Token: $API_TOKEN" "http://127.0.0.1:8000/meta?asset=XAU"   | python -m json.tool
 ```
-

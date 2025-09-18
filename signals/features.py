@@ -100,7 +100,7 @@ def add_label_atr_barrier(
     y_atr = +1 (tp first), -1 (sl first), 0 (neither).
     """
     out = df.copy()
-    atr = out["atr_14"].fillna(method="ffill")
+    atr = out["atr_14"].ffill()
     close = out["close"]
     tp = close + tp_mult * atr
     sl = close - sl_mult * atr

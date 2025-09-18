@@ -11,6 +11,7 @@ st.title("Gold & BTC Signals")
 features_csv = st.text_input("Features CSV path", "data/xauusd_5m_atr.csv")
 model_path = st.text_input("Model path", "models/xgb_barrier.joblib")
 meta_path = st.text_input("Meta JSON path", "models/xgb_barrier_meta.json")
+display_mult = st.number_input("Display multiplier", min_value=0.0, value=1.0, step=0.1)
 
 col1, col2 = st.columns(2)
 
@@ -38,12 +39,24 @@ with col1:
         tp = close + 1.5 * atr if side == 1 else (close - 1.5 * atr if side == -1 else None)
         sl = close - 1.0 * atr if side == 1 else (close + 1.0 * atr if side == -1 else None)
 
+        disp_close = close * display_mult
+        disp_tp = tp * display_mult if tp is not None else None
+        disp_sl = sl * display_mult if sl is not None else None
+
         st.metric("Timestamp", str(row["timestamp"]))
-        st.metric("Close", f"{close:,.2f}")
+        st.metric("Close", f"{disp_close:,.2f}")
         st.metric("Prob LONG", f"{p_long:.3f}")
         st.metric("Prob SHORT", f"{p_short:.3f}")
         st.metric("Decision", {1: "BUY", -1: "SELL", 0: "FLAT"}[side])
-        st.write({"tp": tp, "sl": sl})
+        st.write(
+            {
+                "tp": disp_tp,
+                "sl": disp_sl,
+                "raw_close": close,
+                "raw_tp": tp,
+                "raw_sl": sl,
+            }
+        )
     except Exception as e:
         st.error(f"Error: {e}")
 
@@ -65,4 +78,3 @@ with col2:
         st.error(f"Plot error: {e}")
 
 st.caption("Tip: refresh features regularly, re-train periodically, and keep thresholds under walk-forward review.")
-

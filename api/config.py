@@ -34,7 +34,7 @@ ASSETS = {
     },
     "BTC": {
         "features": "data/btcusdt_1m_atr.csv",
-        "model": "models/xgb_barrier.joblib",  # reuse until you train a BTC model
-        "meta": "models/xgb_barrier_meta.json",
+        "model":    "models/xgb_barrier_btc.joblib",
+        "meta":     "models/xgb_barrier_btc_meta.json",
     },
 }

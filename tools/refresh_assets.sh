@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 [ -d venv ]  && source venv/bin/activate  || true
 
 echo "[refresh] fetching data..."
-python tools/ingest.py gold   --ticker XAUUSD=X --interval 5m --period 30d --out data/xauusd_5m
+python tools/ingest.py gold   --ticker GC=F --interval 5m --period 30d --out data/xauusd_5m
 python tools/ingest.py crypto --symbol BTC/USDT --exchange binance --timeframe 1m --limit 1500 --out data/btcusdt_1m
 
 echo "[refresh] building ATR features..."

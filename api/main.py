@@ -8,6 +8,19 @@ import json
 from .model_loader import load_model
 from .config import ASSETS, get_api_token
 
+import csv, time, pathlib
+
+LOG_PATH = pathlib.Path("data/signal_log.csv")
+
+def _log_signal(asset, payload):
+    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    first = not LOG_PATH.exists()
+    with LOG_PATH.open("a", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=["ts","asset","side","p_long","p_short","thr_long","thr_short","tp","sl"])
+        if first: w.writeheader()
+        w.writerow({"ts": time.time(), "asset": asset, **{k: payload.get(k) for k in ["side","p_long","p_short","thr_long","thr_short","tp","sl"]}})
+
+
 app = FastAPI(title="Gold-BTC Signal API", version="0.2.0")
 
 
@@ -101,6 +114,7 @@ def signal(
         raise HTTPException(status_code=400, detail="Provide asset or features_csv+model_path")
     try:
         out = _latest_row_signal(features_csv, model_path)
+        _log_signal(asset or features_csv, out)
         return JSONResponse(out)
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

@@ -32,7 +32,9 @@ def _synthetic_yf(limit: int, interval: str) -> pd.DataFrame:
     synthetic["Datetime"] = pd.to_datetime(synthetic["timestamp"], unit="ms", utc=True)
     synthetic = synthetic.drop(columns=["timestamp"])
     cols = ["Datetime", "open", "high", "low", "close", "volume"]
-    return synthetic[cols]
+    synthetic = synthetic[cols]
+    synthetic.attrs["synthetic"] = True
+    return synthetic
 
 
 def fetch_ccxt_ohlcv(symbol: str, timeframe: str = "1m", limit: int = 1000, exchange_name: str = "binance") -> pd.DataFrame:
@@ -46,12 +48,12 @@ def fetch_ccxt_ohlcv(symbol: str, timeframe: str = "1m", limit: int = 1000, exch
     return pd.DataFrame(ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"])
 
 
-def fetch_yf(symbol: str, interval: str = "5m", period: str = "30d") -> pd.DataFrame:
+def fetch_yf(symbol: str, interval: str = "5m", period: str = "30d") -> tuple[pd.DataFrame, bool]:
     try:
         import yfinance as yf
     except ImportError:
         print("[gold] WARNING: yfinance not installed; generating synthetic OHLCV data.")
-        return _synthetic_yf(500, interval)
+        return _synthetic_yf(500, interval), True
 
     df = yf.download(symbol, interval=interval, period=period, progress=False, auto_adjust=False)
     if isinstance(df.columns, pd.MultiIndex):
@@ -61,7 +63,7 @@ def fetch_yf(symbol: str, interval: str = "5m", period: str = "30d") -> pd.DataF
             df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
     if df.empty:
         print("[gold] WARNING: empty dataframe from yfinance; generating synthetic OHLCV data.")
-        return _synthetic_yf(500, interval)
+        return _synthetic_yf(500, interval), True
 
     df = df.reset_index()
     if isinstance(df.columns, pd.MultiIndex):
@@ -70,7 +72,8 @@ def fetch_yf(symbol: str, interval: str = "5m", period: str = "30d") -> pd.DataF
         except Exception:
             df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
     df.rename(columns={"Open": "open", "High": "high", "Low": "low", "Close": "close", "Volume": "volume", "Adj Close": "adj_close"}, inplace=True)
-    return df
+    df.attrs["synthetic"] = False
+    return df, False
 
 
 def main():
@@ -85,7 +88,7 @@ def main():
     ap_crypto.add_argument("--out", default=None, help="output base path (without extension)")
 
     ap_gold = sub.add_parser("gold", help="Fetch gold proxy via yfinance")
-    ap_gold.add_argument("--ticker", default="XAUUSD=X", help="Yahoo ticker: XAUUSD=X or GLD")
+    ap_gold.add_argument("--ticker", default="GC=F", help="Yahoo ticker, e.g., GC=F or GLD")
     ap_gold.add_argument("--interval", default="5m", help="yfinance interval: 1m,2m,5m,15m,30m,60m")
     ap_gold.add_argument("--period", default="30d", help="yfinance period: 7d,30d,60d, etc.")
     ap_gold.add_argument("--out", default=None, help="output base path (without extension)")
@@ -107,12 +110,15 @@ def main():
             print("[crypto] WARNING: normalized dataframe is empty.")
 
     elif args.cmd == "gold":
-        raw = fetch_yf(args.ticker, interval=args.interval, period=args.period)
+        raw, synthetic = fetch_yf(args.ticker, interval=args.interval, period=args.period)
         if raw.empty:
             print("[gold] WARNING: empty dataframe from source; nothing to normalize.")
             norm = raw
         else:
-            norm = normalize_ohlcv_df(raw, source="yfinance", symbol=args.ticker, timeframe=args.interval)
+            if synthetic:
+                norm = normalize_ohlcv_df(raw, source="synthetic", symbol="XAU_SYN", timeframe=args.interval)
+            else:
+                norm = normalize_ohlcv_df(raw, source="yfinance", symbol=args.ticker, timeframe=args.interval)
         base = pathlib.Path(args.out) if args.out else DATA_DIR / f"{args.ticker.replace('=', '').replace('^', '')}_{args.interval}"
         csv_path, pq_path = save_csv_parquet(norm, base)
         print(f"[gold] rows={len(norm)} range={norm['timestamp'].min() if not norm.empty else 'NaT'} → {norm['timestamp'].max() if not norm.empty else 'NaT'}")
