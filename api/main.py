@@ -6,7 +6,7 @@ import pathlib
 import json
 
 from .model_loader import load_model
-from .config import API_TOKEN, ASSETS
+from .config import ASSETS, get_api_token
 
 app = FastAPI(title="Gold-BTC Signal API", version="0.2.0")
 
@@ -15,9 +15,25 @@ app = FastAPI(title="Gold-BTC Signal API", version="0.2.0")
 def health():
     return {"status": "ok"}
 
+@app.get("/")
+def index():
+    return {
+        "service": "Gold-BTC Signal API",
+        "assets": sorted(ASSETS.keys()),
+        "endpoints": {
+            "health": "/health",
+            "signal": "/signal?asset=XAU",
+            "meta": "/meta?asset=XAU",
+            "docs": "/docs",
+        },
+    }
+
+
 
 def _auth(x_token: str | None):
-    if API_TOKEN and (x_token != API_TOKEN):
+    expected = get_api_token()
+    provided = (x_token or "").strip()
+    if expected and provided != expected:
         raise HTTPException(status_code=401, detail="Invalid or missing token")
 
 
@@ -72,7 +88,7 @@ def signal(
     features_csv: str | None = None,
     model_path: str | None = None,
     asset: str | None = Query(None, description="Shortcut: XAU or BTC"),
-    x_token: str | None = Header(None, alias="X-Token"),
+    x_token: str | None = Header(None),
 ):
     _auth(x_token)
     if asset:
@@ -98,7 +114,7 @@ def signal(
 def meta(
     meta_path: str | None = None,
     asset: str | None = Query(None, description="Shortcut: XAU or BTC"),
-    x_token: str | None = Header(None, alias="X-Token"),
+    x_token: str | None = Header(None),
 ):
     _auth(x_token)
     if asset:
