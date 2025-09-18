@@ -142,3 +142,18 @@ Emit latest signal (long/short/flat):
 python ml/predict_barrier.py --features_csv data/xauusd_5m_atr.csv --model_path models/xgb_barrier.joblib
 ```
 
+## Step 7 – API & Dashboard
+
+Run API:
+```bash
+uvicorn api.main:app --reload --port 8000
+# test:
+curl "http://127.0.0.1:8000/signal?features_csv=data/xauusd_5m_atr.csv&model_path=models/xgb_barrier.joblib"
+```
+
+Run dashboard:
+
+```bash
+streamlit run web/app.py
+```
+

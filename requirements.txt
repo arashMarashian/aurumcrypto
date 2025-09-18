@@ -10,3 +10,5 @@ uvicorn
 pydantic
 plotly
 matplotlib
+joblib
+streamlit
