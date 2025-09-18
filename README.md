@@ -87,3 +87,29 @@ python tools/make_features.py --in_csv data/sample_btcusdt_1m.csv --label_mode a
 
 Outputs include engineered indicators (RSI/EMA/MACD/Bollinger/ATR), returns, regime flags, and a label column (y_next3_sign or y_atr).
 
+## Baseline Rule Signals (Step 4)
+
+Run RSI + trend + ATR SL/TP baseline with backtest:
+```bash
+python tools/run_rules.py --features_csv data/xauusd_5m_nextk.csv --rsi_low 35 --rsi_high 65 --tp_mult 1.5 --sl_mult 1.0 --fee_bps 1.5 --max_hold 60 --out_trades data/xauusd_rules_trades.csv
+```
+
+Outputs: head/tail of trades and a summary dict (trades, hit_rate, avg_net, sharpe, max_dd, cum_net).
+
+## Step 5 – Backtesting upgrades & tuning
+
+Session filter + vol targeting:
+```bash
+python tools/run_rules.py --features_csv data/xauusd_5m_nextk.csv --session "07:00-20:00" --weekdays "1-5" --vol_target 0.10 --out_trades data/xauusd_rules_trades.csv
+```
+
+This applies a session filter (e.g., gold market hours), optional volatility targeting, saves trades and an equity/drawdown plot PNG.
+
+Grid search + walk-forward:
+
+```bash
+python tools/sweep_rules.py --features_csv data/xauusd_5m_nextk.csv --session "07:00-20:00" --weekdays "1-5" --out_csv data/sweep_rules.csv
+```
+
+Outputs a CSV ranking parameter sets by full-sample and walk-forward metrics.
+
