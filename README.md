@@ -47,3 +47,29 @@ API
 
 Web UI
 
+## Data Ingestion (Step 2)
+
+Create a venv and install deps:
+```bash
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+Fetch BTC (Binance) 1m candles:
+
+```bash
+python tools/ingest.py crypto --symbol BTC/USDT --exchange binance --timeframe 1m --limit 500
+```
+
+Fetch Gold via Yahoo (choose one):
+
+```bash
+# Spot proxy
+python tools/ingest.py gold --ticker XAUUSD=X --interval 5m --period 30d
+# or GLD ETF (market hours only)
+python tools/ingest.py gold --ticker GLD --interval 5m --period 30d
+```
+
+Outputs are saved under /data as CSV and Parquet with normalized schema:
+timestamp, open, high, low, close, volume, source, symbol, timeframe
+
