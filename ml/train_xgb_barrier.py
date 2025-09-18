@@ -19,6 +19,18 @@ from backtest.core import run_backtest, BTConfig
 from signals.rules import rsi_trend_atr_signal
 
 
+class _ConstantModel:
+    def __init__(self, prob: float):
+        self.prob = float(np.clip(prob, 1e-6, 1 - 1e-6))
+
+    def predict_proba(self, X):
+        n = len(X)
+        out = np.zeros((n, 2), dtype=float)
+        out[:, 1] = self.prob
+        out[:, 0] = 1 - self.prob
+        return out
+
+
 def time_splits(n, n_splits=4):
     tscv = TimeSeriesSplit(n_splits=n_splits)
     return list(tscv.split(np.arange(n)))
@@ -34,6 +46,12 @@ def train_head(X: np.ndarray, y: np.ndarray, splits, calibrate: bool = True):
     oof = np.zeros(len(y))
     models = []
     for tr, te in splits:
+        unique = np.unique(y[tr])
+        if len(unique) < 2:
+            const_prob = float(y[tr].mean())
+            oof[te] = const_prob
+            models.append(_ConstantModel(const_prob))
+            continue
         base = XGBClassifier(
             n_estimators=400,
             max_depth=4,
@@ -54,6 +72,10 @@ def train_head(X: np.ndarray, y: np.ndarray, splits, calibrate: bool = True):
         oof[te] = p
         models.append(model)
     auc = roc_auc_score(y, oof) if len(np.unique(y)) > 1 else float("nan")
+    if len(np.unique(y)) < 2:
+        final = _ConstantModel(float(np.clip(y.mean(), 1e-6, 1 - 1e-6)))
+        return {"oof": oof, "auc": float("nan"), "final": final}
+
     final = XGBClassifier(
         n_estimators=400,
         max_depth=4,
@@ -89,6 +111,12 @@ def sweep_thresholds(df: pd.DataFrame, p_long: np.ndarray, p_short: np.ndarray, 
             sharpe = summary.get("sharpe", float("nan"))
             if best is None or sharpe > best["summary"].get("sharpe", float("-inf")):
                 best = {"tl": float(tl), "ts": float(ts), "summary": summary}
+    if best is None:
+        best = {
+            "tl": float(thrs[0]),
+            "ts": float(thrs[0]),
+            "summary": {"trades": 0, "hit_rate": 0.0, "avg_net": 0.0, "sharpe": 0.0, "max_dd": 0.0, "cum_net": 0.0},
+        }
     return best
 
 
@@ -145,4 +173,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
